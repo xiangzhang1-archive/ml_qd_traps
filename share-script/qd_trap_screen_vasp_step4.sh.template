@@ -1,0 +1,102 @@
+#!/bin/bash
+
+   share_psp=faaa
+   share_script=fbbb
+   cluster=fccc
+   job_name=fggg
+
+   cid_start=1
+   cid_end=100
+   psp_name='Pb.S.I.nod.pbe'
+   nid_per_sub=50
+
+   str1=`pwd`
+   str2=`basename $str1`
+   sysname=`echo $str2 | cut -d'.' -f 1`
+   for (( id=$cid_start; id<=$cid_end; id++ )) ; do
+      file="struct-gen/struct-poscar/$sysname.cf-$id.vasp"
+      if [[ -e $file ]] ; then
+         id_max=$id
+      fi
+   done
+   for (( id=$cid_end; id>=$cid_start; id-- )) ; do
+      file="struct-gen/struct-poscar/$sysname.cf-$id.vasp"
+      if [[ -e $file ]] ; then
+         id_min=$id
+      fi
+   done
+   if [[ $cid_start < $id_min ]] ; then
+      cid_start=$id_min
+   fi
+   if [[ $cid_end > $id_max ]] ; then
+      cid_end=$id_max
+   fi
+
+   for ((cid=$cid_start; cid<=$cid_end; cid++)) ; do
+      folder="cf-$cid"
+      if [[ -d $folder ]] ; then
+         echo "cf-$cid"
+         cd ./$folder
+         if [[ -d "pdos" ]] ; then
+            echo "job pdos started already."
+         else
+            file1='./en/OUTCAR'
+            if [[ ! -e $file1 ]] ; then
+               echo "job en waiting."
+            else
+               line=`tail -n 1 $file1`
+               tempstr=`echo $line | cut -d':' -f 1`
+               if [[ $tempstr != "Voluntary context switches" ]] ; then
+                  echo "job en running."
+               else
+                  echo 'job en finished, move on to pdos calculation.'
+                  cp -r ../y-sample/pdos .
+                  cd ./pdos/
+                  cp ../en/POSCAR .
+                  if [[ -s '../en/CHGCAR' ]] ; then
+                     mv ../en/CHGCAR .
+                  fi
+                  if [[ -s '../en/WAVECAR' ]] ; then
+                     mv ../en/WAVECAR .
+                  fi
+                  ln -sf $share_psp/$psp_name.POTCAR ./POTCAR
+                  str1=`grep 'NBANDS' ../en/INCAR`
+                  nband=`echo $str1 | cut -d '=' -f 2`
+                  sed "s/abbb/$nband/g" INCAR.template > INCAR
+                  cd ../
+               fi
+            fi
+         fi
+         cd ../
+      fi
+   done
+
+   if [[ ! -d "job-submit-files" ]] ; then
+      mkdir "job-submit-files"
+   fi
+   if [[ ! -d "job-status-files" ]] ; then
+      mkdir "job-status-files"
+   fi
+   njob=$(( $cid_end-$cid_start+1 ))
+   ngroup=$(( ($njob-1)/$nid_per_sub + 1 ))
+   nsubjob=$(( $njob / $ngroup ))
+   nremain=$(( $njob % ngroup ))
+   echo "Number of submission = $ngroup "
+   sub_id_end=$(($cid_start-1))
+   for (( i=1; i<=$ngroup; i++ )) ; do
+      sub_id_start=$(($sub_id_end + 1 ))
+      if [[ i -le $nremain ]]; then
+         sub_id_end=$(( $sub_id_start + $nsubjob ))
+      else
+         sub_id_end=$(( $sub_id_start + $nsubjob -1 ))
+      fi
+      echo "Submission $i ranges from $sub_id_start to $sub_id_end"
+      sed "s/saaa/$job_name.g$i/g" ./y-sample/qd_trap_screen_vasp_job_multi4.$cluster.pbs.template > temp1
+      sed "s/sbbb/$sub_id_start-$sub_id_end/g" temp1 > temp2
+      sed "s/sccc/$sub_id_start/g" temp2 > temp3
+      sed "s/sddd/$sub_id_end/g" temp3 > ./job-submit-files/sub_vasp_multi.step4.$sub_id_start-$sub_id_end.pbs
+      rm temp1 temp2 temp3 
+      sbatch ./job-submit-files/sub_vasp_multi.step4.$sub_id_start-$sub_id_end.pbs
+   done
+
+

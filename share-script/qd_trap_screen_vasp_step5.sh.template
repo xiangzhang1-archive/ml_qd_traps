@@ -1,0 +1,43 @@
+#!/bin/bash
+
+   share_psp=faaa
+   share_script=fbbb
+   cluster=fccc
+   job_name=fggg
+
+   cid_start=1
+   cid_end=100
+   neig_extra=70
+   nvb_collect=100
+   ncb_collect=100
+
+   result_dir="data-vasp"
+
+   str1=`pwd`
+   sysname_full=`basename $str1`
+   sysname=`echo $str2 | cut -d'.' -f 1`
+   for ((cid=$cid_start; cid<=$cid_end; cid++)) ; do
+      folder="cf-$cid"
+      if [[ -d $folder ]] ; then
+         echo "cf-$cid"
+         cd ./$folder
+         file1='./pdos/OUTCAR'
+         if [[ ! -e $file1 ]] ; then
+            echo "job pdos waiting."
+         else
+            line=`tail -n 1 $file1`
+            tempstr=`echo $line | cut -d':' -f 1`
+            if [[ $tempstr != "Voluntary context switches" ]] ; then
+               echo "job pdos running."
+            else
+               echo "job pdos finished."
+               cd ./pdos/
+               cp DOSCAR  ../../$result_dir/pdos/$sysname_full.cf-$cid.doscar.dat
+               cp PROCAR ../../$result_dir/pdos/$sysname_full.cf-$cid.procar.dat
+               cd ../
+            fi
+         fi
+         cd ../
+      fi
+   done
+

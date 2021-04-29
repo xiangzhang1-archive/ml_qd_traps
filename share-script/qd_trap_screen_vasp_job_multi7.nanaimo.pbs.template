@@ -1,0 +1,37 @@
+#!/bin/bash
+#SBATCH --nodes=2                  # Request 2 nodes 
+#SBATCH -t 200:00:00                 # Request 12 hours in walltime.
+#SBATCH --job-name=wfn2         # Job name
+##SBATCH -e error                      # error file
+#SBATCH --ntasks=48              # total number of cores required. Nodes*24              
+#SBATCH --export=ALL
+#SBATCH -o ./job-status-files/step7.sbbb.log
+
+# Load environment modules
+. /usr/share/Modules/init/bash
+
+module purge
+module load intel
+
+
+#-------------------------------------------------------
+id_start=sccc
+id_end=sddd
+
+for (( sysid=$id_start; sysid<=$id_end; sysid++)) ; do
+   folder="./cf-$sysid/wfn/"
+   if [ -d "$folder" ]; then
+      echo $sysid
+      cd ./"$folder";
+      if [[ ( ! -f "./finished2.txt") && (-e "step2.sig") ]]; then
+         seconds=$(date +%s);
+         mpirun -np 48 /opt/vasp.5.4.1/bin/vasp_gam &> vasp.out
+#         mpirun -np 48 /opt/vasp.5.4.1/bin/vasp_std &> vasp.out
+         echo "job $sysid finished in $(($(date +%s) - $seconds)) seconds.";
+         echo $(($(date +%s) - $seconds)) > ./finished2.txt;
+      fi
+      cd ../../;
+   fi
+done
+
+
